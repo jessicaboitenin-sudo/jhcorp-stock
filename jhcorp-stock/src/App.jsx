@@ -1,24 +1,36 @@
+import { useState } from 'react'
+import Layout from './components/Layout'
+import Dashboard from './pages/Dashboard'
 import Articles from './pages/Articles'
+import Recettes from './pages/Recettes'
+import Commandes from './pages/Commandes'
+import Entree from './pages/Entree'
+import Production from './pages/Production'
+import Livraison from './pages/Livraison'
+import Inventaire from './pages/Inventaire'
+import Historique from './pages/Historique'
+import Parametres from './pages/Parametres'
 
-const C = {
-  bg: '#F6F4FD', border: '#E8E3FA', text: '#1A1630', textSub: '#7B72A8',
-  indigo: '#6954C4', indigoLight: '#E8E3FA',
+const PAGES = {
+  dashboard: Dashboard,
+  articles: Articles,
+  recettes: Recettes,
+  commandes: Commandes,
+  entree: Entree,
+  production: Production,
+  livraison: Livraison,
+  inventaire: Inventaire,
+  historique: Historique,
+  parametres: Parametres,
 }
-const F = "'Montserrat', sans-serif"
 
 export default function App() {
+  const [page, setPage] = useState('dashboard')
+  const PageComponent = PAGES[page] || Dashboard
+
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, fontFamily: F }}>
-      <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`, padding: '16px 28px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 8, background: C.indigoLight, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          📦
-        </div>
-        <span style={{ color: C.text, fontWeight: 800, fontSize: 15, fontFamily: F }}>JH Corporation — Stock</span>
-        <span style={{ color: C.textSub, fontSize: 11, fontFamily: F, marginLeft: 10 }}>Test de connexion — ecran Articles</span>
-      </div>
-      <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 28px' }}>
-        <Articles />
-      </div>
-    </div>
+    <Layout page={page} setPage={setPage}>
+      <PageComponent />
+    </Layout>
   )
 }
