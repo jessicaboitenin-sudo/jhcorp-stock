@@ -37,7 +37,7 @@ export default function Livraison() {
     if (!cmdChoisie) return
     setSaving(true); setError(null)
     const numero = `BL-${Date.now().toString().slice(-8)}`
-    const { data: bl, error: e1 } = await supabase.from('bons_livraison').insert({ numero, commande_id: cmdChoisie.id, numero_bc: cmdChoisie.numero_bc, date_livraison: cmdChoisie.date_livraison, client: 'Glovo', statut: 'valide' }).select().single()
+    const { data: bl, error: e1 } = await supabase.from('bons_livraison').insert({ numero, commande_id: cmdChoisie.id, numero_bc: cmdChoisie.numero_bc, date_livraison: cmdChoisie.date_livraison, client: cmdChoisie.client || 'Client', statut: 'valide' }).select().single()
     if (e1) { setError(e1.message); setSaving(false); return }
     for (const l of lignesBl) {
       const { data: article } = await supabase.from('articles').select('id,stock_actuel').eq('reference', l.sku).single()
