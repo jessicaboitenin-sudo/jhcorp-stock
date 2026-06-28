@@ -79,7 +79,7 @@ export default function Entree() {
         {lignes.map((l, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <ArticleSearch articles={articles} value={l.article?.designation || ''} onSelect={a => updateLigne(i, 'article', a)} />
-            <input type="number" min="0" placeholder="0" value={l.qte} onChange={ev => updateLigne(i, 'qte', ev.target.value)} style={{ width: 90, height: 38, border: `1.5px solid ${C.border2}`, borderRadius: 9, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
+            <input type="number" onWheel={ev => ev.target.blur()} min="0" placeholder="0" value={l.qte} onChange={ev => updateLigne(i, 'qte', ev.target.value)} style={{ width: 90, height: 38, border: `1.5px solid ${C.border2}`, borderRadius: 9, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
             <span onClick={() => setLignes(p => p.filter((_, idx) => idx !== i))} style={{ alignSelf: 'center', cursor: 'pointer', color: C.red, fontSize: 16 }}>✕</span>
           </div>
         ))}

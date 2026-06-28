@@ -94,8 +94,8 @@ export default function Production() {
         {lignes.map((l, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <ProduitSearch produits={produitsAvecRecette} onSelect={p => updateLigne(i, 'produit', p)} />
-            <input type="number" min="0" placeholder="0" value={l.qte} onChange={ev => updateLigne(i, 'qte', ev.target.value)} style={{ width: 90, height: 38, border: `1.5px solid ${C.indigo}`, borderRadius: 9, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
-            <input type="number" min="0" placeholder="0" value={l.casse} onChange={ev => updateLigne(i, 'casse', ev.target.value)} style={{ width: 90, height: 38, border: `1.5px solid ${C.orange}`, borderRadius: 9, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
+            <input type="number" onWheel={ev => ev.target.blur()} min="0" placeholder="0" value={l.qte} onChange={ev => updateLigne(i, 'qte', ev.target.value)} style={{ width: 90, height: 38, border: `1.5px solid ${C.indigo}`, borderRadius: 9, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
+            <input type="number" onWheel={ev => ev.target.blur()} min="0" placeholder="0" value={l.casse} onChange={ev => updateLigne(i, 'casse', ev.target.value)} style={{ width: 90, height: 38, border: `1.5px solid ${C.orange}`, borderRadius: 9, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
             <span onClick={() => setLignes(p => p.filter((_, idx) => idx !== i))} style={{ alignSelf: 'center', cursor: 'pointer', color: C.red, fontSize: 16 }}>✕</span>
           </div>
         ))}

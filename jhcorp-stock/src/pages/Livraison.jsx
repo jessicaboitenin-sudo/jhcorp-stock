@@ -131,7 +131,7 @@ export default function Livraison() {
           {lignesAj.map((l, i) => (
             <div key={l.id} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
               <span style={{ flex: 2, fontSize: 12, color: C.text, fontFamily: F }}>{l.nom_produit}</span>
-              <input type="number" value={l.quantite_livree} onChange={ev => setLignesAj(prev => prev.map((x, idx) => idx === i ? { ...x, quantite_livree: ev.target.value } : x))} style={{ width: 90, height: 36, border: `1.5px solid ${C.orange}`, borderRadius: 8, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
+              <input type="number" onWheel={ev => ev.target.blur()} value={l.quantite_livree} onChange={ev => setLignesAj(prev => prev.map((x, idx) => idx === i ? { ...x, quantite_livree: ev.target.value } : x))} style={{ width: 90, height: 36, border: `1.5px solid ${C.orange}`, borderRadius: 8, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
               <input value={l.observation || ''} onChange={ev => setLignesAj(prev => prev.map((x, idx) => idx === i ? { ...x, observation: ev.target.value } : x))} style={{ flex: 1, height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 10px', fontFamily: F, fontSize: 12 }} />
             </div>
           ))}
@@ -184,7 +184,7 @@ export default function Livraison() {
                 <div style={{ fontSize: 10, color: C.textMuted, fontFamily: F }}>{l.sku}</div>
               </div>
               <span style={{ width: 80, textAlign: 'center', color: C.textSub, fontSize: 13, fontFamily: F }}>{l.quantite_commandee}</span>
-              <input type="number" value={l.quantite_livree} onChange={ev => setLignesBl(prev => prev.map((x, idx) => idx === i ? { ...x, quantite_livree: ev.target.value } : x))} style={{ width: 90, height: 36, border: `2px solid ${C.indigo}`, borderRadius: 8, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
+              <input type="number" onWheel={ev => ev.target.blur()} value={l.quantite_livree} onChange={ev => setLignesBl(prev => prev.map((x, idx) => idx === i ? { ...x, quantite_livree: ev.target.value } : x))} style={{ width: 90, height: 36, border: `2px solid ${C.indigo}`, borderRadius: 8, padding: '0 10px', fontFamily: F, fontSize: 13 }} />
               <input value={l.observation || ''} onChange={ev => setLignesBl(prev => prev.map((x, idx) => idx === i ? { ...x, observation: ev.target.value } : x))} placeholder="-" style={{ flex: 1, height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 10px', fontFamily: F, fontSize: 12 }} />
             </div>
           ))}
