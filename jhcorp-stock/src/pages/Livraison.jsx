@@ -77,39 +77,136 @@ export default function Livraison() {
 
   if (viewing) {
     const bl = viewing
+    // Grouper les lignes par PO (numero_bc)
+    const lignesParPO = {}
+    bl.lignes_bon_livraison?.forEach(l => {
+      const po = l.po_number || bl.numero_bc || 'N/A'
+      if (!lignesParPO[po]) lignesParPO[po] = []
+      lignesParPO[po].push(l)
+    })
+    const pos = Object.keys(lignesParPO)
+    // Si toutes les lignes ont le même PO ou pas de po_number, grouper sous un seul PO
+    const hasMultiplePOs = pos.length > 1
+
     return (
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ color: C.text, fontSize: 22, fontWeight: 800, fontFamily: F, margin: 0 }}>Apercu BL</h1>
+      <>
+        <style>{`
+          @media print {
+            body * { visibility: hidden !important; }
+            #bl-print-zone, #bl-print-zone * { visibility: visible !important; }
+            #bl-print-zone { position: fixed; top: 0; left: 0; width: 100%; }
+            .no-print { display: none !important; }
+          }
+        `}</style>
+        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h1 style={{ color: C.text, fontSize: 22, fontWeight: 800, fontFamily: F, margin: 0 }}>Aperçu BL</h1>
           <button onClick={() => setViewing(null)} style={{ border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: '8px 16px', background: C.surface, color: C.text, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>← Retour</button>
         </div>
-        <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 28, maxWidth: 600 }}>
-          <div style={{ color: C.indigo, fontWeight: 900, fontSize: 18, fontFamily: F, marginBottom: 4 }}>JH Corporation</div>
-          <div style={{ color: C.textSub, fontSize: 12, fontFamily: F, marginBottom: 20 }}>Bon de livraison</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
-            <div><div style={{ color: C.textMuted, fontSize: 10, fontFamily: F }}>Numero BL</div><div style={{ color: C.text, fontWeight: 700, fontSize: 13, fontFamily: F }}>{bl.numero}</div></div>
-            <div><div style={{ color: C.textMuted, fontSize: 10, fontFamily: F }}>Numero BC</div><div style={{ color: C.text, fontWeight: 700, fontSize: 13, fontFamily: F }}>{bl.numero_bc}</div></div>
-            <div><div style={{ color: C.textMuted, fontSize: 10, fontFamily: F }}>Date livraison</div><div style={{ color: C.text, fontWeight: 700, fontSize: 13, fontFamily: F }}>{new Date(bl.date_livraison).toLocaleDateString('fr-FR')}</div></div>
-            <div><div style={{ color: C.textMuted, fontSize: 10, fontFamily: F }}>Client</div><div style={{ color: C.text, fontWeight: 700, fontSize: 13, fontFamily: F }}>{bl.client}</div></div>
+
+        <div id="bl-print-zone" style={{ background: '#fff', maxWidth: 740, margin: '0 auto', padding: 32, fontFamily: F, border: `1px solid ${C.border}`, borderRadius: 14 }}>
+          {/* En-tête */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, paddingBottom: 20, borderBottom: '2px solid #1A1630' }}>
+            {/* Fournisseur */}
+            <div>
+              <div style={{ color: C.indigo, fontWeight: 900, fontSize: 20, marginBottom: 4 }}>JH Corporation</div>
+              <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.6 }}>
+                JH Corporation SARL<br/>
+                Abidjan, Côte d'Ivoire
+              </div>
+            </div>
+            {/* Titre central */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 900, color: C.text, letterSpacing: 1 }}>BON DE LIVRAISON</div>
+              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px', fontSize: 11 }}>
+                <div style={{ color: C.textMuted }}>Numéro BL</div>
+                <div style={{ color: C.indigo, fontWeight: 700 }}>{bl.numero}</div>
+                <div style={{ color: C.textMuted }}>Date livraison</div>
+                <div style={{ fontWeight: 700 }}>{bl.date_livraison ? new Date(bl.date_livraison).toLocaleDateString('fr-FR') : '-'}</div>
+              </div>
+            </div>
+            {/* Client */}
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 4, fontWeight: 700 }}>CLIENT</div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: C.text }}>{bl.client || 'Client'}</div>
+              <div style={{ fontSize: 11, color: C.textSub, lineHeight: 1.6 }}>Abidjan</div>
+            </div>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
-            <thead><tr>
-              {['Produit / SKU', 'Commande', 'Livre', 'Observation'].map(h => <th key={h} style={{ textAlign: h === 'Produit / SKU' ? 'left' : 'right', fontSize: 10, color: C.textMuted, fontFamily: F, paddingBottom: 8 }}>{h}</th>)}
-            </tr></thead>
+
+          {/* POs liés */}
+          {pos.length > 0 && (
+            <div style={{ background: C.indigoLight, borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 11, color: C.text }}>
+              <span style={{ fontWeight: 700, color: C.indigo }}>PO(S) LIÉS : </span>
+              {pos.map((po, i) => (
+                <span key={po}>
+                  <span style={{ fontWeight: 600 }}>• {po}</span>
+                  {i < pos.length - 1 ? '  ' : ''}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Tableau des lignes groupées par PO */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 28, fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: C.text }}>
+                <th style={{ padding: '8px 10px', textAlign: 'left', color: '#fff', fontWeight: 700, fontSize: 11 }}>Produit</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: 11 }}>Supplier SKU</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: 11 }}>Qté Commandée</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: 11 }}>Qté Livrée</th>
+                <th style={{ padding: '8px 10px', textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: 11 }}>Observations</th>
+              </tr>
+            </thead>
             <tbody>
-              {bl.lignes_bon_livraison?.map(l => (
-                <tr key={l.id} style={{ borderTop: `1px solid ${C.border}` }}>
-                  <td style={{ padding: '8px 0', fontSize: 12, color: C.text, fontFamily: F }}>{l.nom_produit}<div style={{ fontSize: 10, color: C.textMuted }}>{l.sku}</div></td>
-                  <td style={{ padding: '8px 0', fontSize: 12, color: C.textSub, fontFamily: F, textAlign: 'right' }}>{l.quantite_commandee}</td>
-                  <td style={{ padding: '8px 0', fontSize: 12, fontWeight: 700, color: C.text, fontFamily: F, textAlign: 'right' }}>{l.quantite_livree}</td>
-                  <td style={{ padding: '8px 0', fontSize: 11, color: C.textSub, fontFamily: F, textAlign: 'right' }}>{l.observation || '-'}</td>
-                </tr>
+              {pos.map(po => (
+                <>
+                  {hasMultiplePOs && (
+                    <tr key={`header-${po}`}>
+                      <td colSpan={5} style={{ padding: '10px 10px 6px', fontWeight: 800, fontSize: 12, color: C.indigo, background: C.indigoLight, borderTop: `2px solid ${C.indigo}` }}>
+                        — PO {po}
+                      </td>
+                    </tr>
+                  )}
+                  {lignesParPO[po].map((l, i) => (
+                    <tr key={l.id} style={{ background: i % 2 === 0 ? '#FAFBFF' : '#fff', borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: '9px 10px', color: C.text, fontWeight: 500 }}>{l.nom_produit}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'center', color: C.textSub, fontSize: 11 }}>{l.sku}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'center', color: C.textSub }}>{l.quantite_commandee}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'center', fontWeight: 700, color: C.text }}>{l.quantite_livree}</td>
+                      <td style={{ padding: '9px 10px', textAlign: 'center', color: C.textSub, fontSize: 11 }}>{l.observation || ''}</td>
+                    </tr>
+                  ))}
+                </>
               ))}
             </tbody>
           </table>
-          <button onClick={() => window.print()} style={{ width: '100%', border: 'none', borderRadius: 10, padding: 13, background: C.indigo, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🖨️ Imprimer</button>
+
+          {/* Signatures */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, marginTop: 32 }}>
+            <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 4 }}>Livré par :</div>
+              <div style={{ fontSize: 11, color: C.textSub }}>Nom & Signature : ___________________</div>
+            </div>
+            <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 4 }}>Réceptionné par :</div>
+              <div style={{ fontSize: 11, color: C.textSub }}>Nom & Signature : ___________________</div>
+            </div>
+            <div style={{ borderTop: `1.5px solid ${C.text}`, paddingTop: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 4 }}>Remarques :</div>
+              <div style={{ fontSize: 11, color: C.textSub, minHeight: 40 }}></div>
+            </div>
+          </div>
+
+          {/* URL pied de page */}
+          <div style={{ marginTop: 24, paddingTop: 12, borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.textMuted, textAlign: 'center' }}>
+            https://jhcorp-stock.vercel.app
+          </div>
         </div>
-      </div>
+
+        {/* Bouton imprimer */}
+        <div className="no-print" style={{ maxWidth: 740, margin: '20px auto 0', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={() => window.print()} style={{ border: 'none', borderRadius: 10, padding: '12px 28px', background: C.indigo, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🖨️ Imprimer</button>
+        </div>
+      </>
     )
   }
 
