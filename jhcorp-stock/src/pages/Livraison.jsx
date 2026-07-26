@@ -94,9 +94,10 @@ export default function Livraison() {
           @media print {
             body * { visibility: hidden !important; }
             #bl-print-zone, #bl-print-zone * { visibility: visible !important; }
-            #bl-print-zone { position: fixed; top: 0; left: 0; width: 100%; }
+            #bl-print-zone { position: fixed; top: 0; left: 0; width: 100%; padding: 0 !important; }
             .no-print { display: none !important; }
           }
+          @page { margin: 12mm; size: A4 portrait; }
         `}</style>
         <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h1 style={{ color: C.text, fontSize: 22, fontWeight: 800, fontFamily: F, margin: 0 }}>Aperçu BL</h1>
@@ -204,7 +205,20 @@ export default function Livraison() {
 
         {/* Bouton imprimer */}
         <div className="no-print" style={{ maxWidth: 740, margin: '20px auto 0', display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => window.print()} style={{ border: 'none', borderRadius: 10, padding: '12px 28px', background: C.indigo, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🖨️ Imprimer</button>
+          <button onClick={() => {
+            const zone = document.getElementById('bl-print-zone')
+            const html = zone.innerHTML
+            const win = window.open('', '_blank')
+            win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>BL ${bl.numero}</title><style>
+              @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body { font-family: 'Montserrat', sans-serif; background: #fff; padding: 24px; }
+              @page { margin: 12mm; size: A4 portrait; }
+            </style></head><body>${html}</body></html>`)
+            win.document.close()
+            win.focus()
+            setTimeout(() => { win.print(); win.close() }, 500)
+          }} style={{ border: 'none', borderRadius: 10, padding: '12px 28px', background: C.indigo, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🖨️ Imprimer</button>
         </div>
       </>
     )
