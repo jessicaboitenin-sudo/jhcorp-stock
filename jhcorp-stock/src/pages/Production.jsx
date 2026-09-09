@@ -211,11 +211,12 @@ function FormFiche({ fiche, onBack, onSaved }) {
 
         {lignes.map((l, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 80px 90px 90px 90px 28px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-            <select value={l.produit_id || ''} onChange={e => updateLigne(i, 'produit_id', e.target.value)}
-              style={{ height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 8px', fontFamily: F, fontSize: 12, cursor: 'pointer' }}>
-              <option value="">— Produit —</option>
-              {produitsFinisDispos.map(a => <option key={a.id} value={a.id}>{a.designation}</option>)}
-            </select>
+            <AutocompleteProduit
+              value={l.produit}
+              articles={produitsFinisDispos}
+              onSelect={a => updateLigne(i, 'produit_id', a.id)}
+              onClear={() => updateLigne(i, 'produit_id', '')}
+            />
             {[
               { field: 'pourcentage_cout', placeholder: '0' },
               { field: 'qte_par_unite_mp', placeholder: 'ex: 2' },
@@ -257,7 +258,8 @@ function FormFiche({ fiche, onBack, onSaved }) {
 function NouvelleProduction({ fiche, onBack, onSaved }) {
   const [lignesFiche, setLignesFiche] = useState([])
   const [qteMp, setQteMp] = useState('')
-  const [prixMp, setPrixMp] = useState(fiche.mp?.prix_revient ? String(Math.round(fiche.mp.prix_revient)) : '')
+  // Prix MP vient du prix moyen pondéré calculé dans Mouvement
+  const prixMp = fiche.mp?.prix_revient ? String(Math.round(fiche.mp.prix_revient)) : '0'
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
   const [note, setNote] = useState('')
   const [qtesProduites, setQtesProduites] = useState({})
@@ -290,7 +292,7 @@ function NouvelleProduction({ fiche, onBack, onSaved }) {
 
   async function handleValider() {
     if (!qteMp || parseFloat(qteMp) <= 0) { setError('Quantité MP obligatoire'); return }
-    if (!prixMp || parseFloat(prixMp) <= 0) { setError('Prix d\'achat MP obligatoire'); return }
+    // Prix MP récupéré depuis le stock (prix moyen pondéré)
     const lignesProd = lignesFiche.filter(l => parseFloat(qtesProduites[l.produit_id]) > 0)
     if (lignesProd.length === 0) { setError('Saisissez au moins une quantité produite'); return }
 
@@ -387,8 +389,11 @@ function NouvelleProduction({ fiche, onBack, onSaved }) {
             <input type="number" min="0" step="0.01" value={qteMp} onChange={e => setQteMp(e.target.value)} onWheel={e => e.target.blur()} placeholder="ex: 100" style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Prix d'achat unitaire (FCFA) *</label>
-            <input type="number" min="0" value={prixMp} onChange={e => setPrixMp(e.target.value)} onWheel={e => e.target.blur()} placeholder="ex: 2500" style={inputStyle} />
+            <label style={labelStyle}>Prix moyen pondéré MP (FCFA)</label>
+            <div style={{ ...inputStyle, display: 'flex', alignItems: 'center', background: '#F6F4FD', color: '#6954C4', fontWeight: 800, fontSize: 14 }}>
+              {fmt(parseFloat(prixMp) || 0)} FCFA
+              <span style={{ fontSize: 10, color: '#B5A6E2', marginLeft: 8, fontWeight: 400 }}>calculé depuis vos entrées</span>
+            </div>
           </div>
           <div>
             <label style={labelStyle}>Note</label>
