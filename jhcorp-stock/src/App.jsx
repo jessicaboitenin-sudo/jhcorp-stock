@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Articles from './pages/Articles'
 import Mouvement from './pages/Mouvement'
+import Production from './pages/Production'
 import Historique from './pages/Historique'
 import Parametres from './pages/Parametres'
 
@@ -12,14 +13,15 @@ const PAGES = {
   dashboard: Dashboard,
   articles: Articles,
   mouvement: Mouvement,
+  production: Production,
   historique: Historique,
   parametres: Parametres,
 }
 
 const ROLE_PAGES = {
-  admin:      ['dashboard','articles','mouvement','historique','parametres'],
-  comptable:  ['dashboard','articles','mouvement','historique'],
-  magasinier: ['dashboard','articles','mouvement','historique'],
+  admin:      ['dashboard','articles','mouvement','production','historique','parametres'],
+  comptable:  ['dashboard','articles','mouvement','production','historique'],
+  magasinier: ['dashboard','articles','mouvement','production','historique'],
 }
 
 export default function App() {
