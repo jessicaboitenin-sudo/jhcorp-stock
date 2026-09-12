@@ -20,11 +20,22 @@ function ListeMP({ onLancerProduction, onVoirHistorique }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.from('articles')
-      .select('*, mp_derives(id, produit:produit_id(id, designation, reference, unite))')
-      .like('reference', 'MP%')
-      .order('designation')
-      .then(({ data }) => { if (data) setMps(data.filter(a => a.mp_derives?.length > 0)); setLoading(false) })
+    supabase.from('mp_derives')
+      .select('mp:mp_id(id, designation, reference, unite, stock_actuel, prix_revient), produit:produit_id(id, designation, reference, unite)')
+      .then(({ data }) => {
+        if (data) {
+          // Regrouper par MP
+          const grouped = {}
+          data.forEach(d => {
+            const mp = d.mp
+            if (!mp) return
+            if (!grouped[mp.id]) grouped[mp.id] = { ...mp, mp_derives: [] }
+            grouped[mp.id].mp_derives.push({ produit: d.produit })
+          })
+          setMps(Object.values(grouped))
+        }
+        setLoading(false)
+      })
   }, [])
 
   return (
