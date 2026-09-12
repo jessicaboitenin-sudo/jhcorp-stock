@@ -17,7 +17,7 @@ const MOTIFS = ['Achat fournisseur', 'Vente', 'Consommation interne', 'Perte / C
 
 export default function Mouvement() {
   const [articles, setArticles] = useState([])
-  const [lignes, setLignes] = useState({}) // { [article_id]: { entree, sortie, prix, motif } }
+  const [lignes, setLignes] = useState({}) // { [article_id]: { entree, sortie, prix_total, motif } }
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
@@ -34,11 +34,11 @@ export default function Mouvement() {
 
   function updateLigne(id, field, val) {
     setLignes(prev => {
-      const current = prev[id] || { entree: '', sortie: '', prix: '', motif: '' }
+      const current = prev[id] || { entree: '', sortie: '', prix_total: '', motif: '' }
       const updated = { ...current, [field]: val }
       // Si on saisit une entrée, vider la sortie et vice versa
       if (field === 'entree' && val) updated.sortie = ''
-      if (field === 'sortie' && val) { updated.entree = ''; updated.prix = '' }
+      if (field === 'sortie' && val) { updated.entree = ''; updated.prix_total = '' }
       return { ...prev, [id]: updated }
     })
   }
@@ -89,15 +89,15 @@ export default function Mouvement() {
         ? (article.stock_actuel || 0) + qte
         : (article.stock_actuel || 0) - qte
 
-      // Prix moyen pondéré si entrée avec prix
+      // Prix moyen pondéré : prix_total / qte = prix unitaire
       const updatePayload = { stock_actuel: nouveauStock }
-      if (isEntree && parseFloat(l.prix) > 0) {
-        const prixSaisi = parseFloat(l.prix)
+      if (isEntree && parseFloat(l.prix_total) > 0) {
+        const prixUnitaire = parseFloat(l.prix_total) / qte  // prix total ÷ quantité
         const stockActuel = article.stock_actuel || 0
         const prixActuel = article.prix_revient || 0
         const nouveauPrix = stockActuel === 0
-          ? prixSaisi
-          : Math.round(((stockActuel * prixActuel) + (qte * prixSaisi)) / (stockActuel + qte) * 100) / 100
+          ? prixUnitaire
+          : Math.round(((stockActuel * prixActuel) + (qte * prixUnitaire)) / (stockActuel + qte) * 100) / 100
         updatePayload.prix_revient = nouveauPrix
       }
 
@@ -111,7 +111,7 @@ export default function Mouvement() {
         quantite: qte,
         date: new Date(date).toISOString(),
         reference_document: motif,
-        prix_unitaire: isEntree && parseFloat(l.prix) > 0 ? parseFloat(l.prix) : null,
+        prix_unitaire: isEntree && parseFloat(l.prix_total) > 0 ? Math.round(parseFloat(l.prix_total) / qte * 100) / 100 : null,
       })
 
       // Mettre à jour l'article localement
@@ -176,7 +176,7 @@ export default function Mouvement() {
       <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, overflow: 'hidden', marginBottom: 16 }}>
         {/* En-tête */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 80px 90px 90px 90px 120px 150px', gap: 0, background: C.text, padding: '10px 16px' }}>
-          {['Article', 'Stock', 'P. achat', 'Entrée', 'Sortie', 'Prix achat', 'Motif'].map((h, i) => (
+          {['Article', 'Stock', 'P.R. unitaire', 'Entrée', 'Sortie', 'Prix total achat', 'Motif'].map((h, i) => (
             <div key={h} style={{ fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: F, textAlign: i > 1 ? 'center' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -185,7 +185,7 @@ export default function Mouvement() {
 
         {!loading && liste.map((a, i) => {
           const l = lignes[a.id] || {}
-          const hasEntree = parseFloat(l.entree) > 0
+          const hasEntree = parseFloat(l?.entree) > 0
           const hasSortie = parseFloat(l.sortie) > 0
           const hasAny = hasEntree || hasSortie
           const rowBg = hasEntree ? '#F0FBF5' : hasSortie ? '#FEF2F2' : i % 2 === 0 ? '#FAFBFF' : '#fff'
@@ -204,9 +204,23 @@ export default function Mouvement() {
                 <div style={{ fontSize: 9, color: C.textMuted, fontFamily: F }}>{a.unite}</div>
               </div>
 
-              {/* Prix actuel */}
+              {/* P.R. unitaire actuel + futur si saisie */}
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 11, color: C.textSub, fontFamily: F }}>{a.prix_revient > 0 ? fmt(Math.round(a.prix_revient)) + ' F' : '—'}</div>
+                {(() => {
+                  const l = lignes[a.id] || {}
+                  const qte = parseFloat(l.entree) || 0
+                  const total = parseFloat(l.prix_total) || 0
+                  if (qte > 0 && total > 0) {
+                    const nouveauPU = Math.round(total / qte)
+                    const stockActuel = a.stock_actuel || 0
+                    const nouveauPMP = stockActuel === 0
+                      ? nouveauPU
+                      : Math.round(((stockActuel * (a.prix_revient || 0)) + (qte * nouveauPU)) / (stockActuel + qte))
+                    return <div style={{ fontSize: 10, color: C.green, fontWeight: 700, fontFamily: F }}>→ {fmt(nouveauPMP)} F</div>
+                  }
+                  return null
+                })()}
               </div>
 
               {/* Entrée */}
@@ -221,7 +235,7 @@ export default function Mouvement() {
 
               {/* Prix achat (actif seulement si entrée) */}
               <div style={{ padding: '0 4px' }}>
-                {inputNum(a.id, 'prix', 'FCFA', !hasEntree)}
+                {inputNum(a.id, 'prix_total', 'Total FCFA', !hasEntree)}
               </div>
 
               {/* Motif ligne */}
