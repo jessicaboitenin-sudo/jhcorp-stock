@@ -434,20 +434,7 @@ function ArticleForm({ article, onClose, onSaved, allArticles }) {
             </div>
           )}
 
-          {/* Confirmation suppression */}
-          {confirmDelete && (
-            <div style={{ background: C.redLight, border: `1.5px solid ${C.red}`, borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
-              <div style={{ color: C.red, fontWeight: 700, fontSize: 13, fontFamily: F, marginBottom: 10 }}>
-                ⚠️ Supprimer "{article?.designation}" ? Cette action est irréversible.
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '9px 0', background: C.surface, color: C.text, fontFamily: F, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Annuler</button>
-                <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, border: 'none', borderRadius: 8, padding: '9px 0', background: C.red, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                  {deleting ? 'Suppression...' : 'Confirmer la suppression'}
-                </button>
-              </div>
-            </div>
-          )}
+
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} disabled={saving} style={{ flex: 1, border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: 12, background: C.surface, color: C.text, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Annuler</button>
@@ -460,6 +447,25 @@ function ArticleForm({ article, onClose, onSaved, allArticles }) {
           </div>
         </div>
       </div>
+
+      {/* Modale confirmation suppression */}
+      {confirmDelete && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,22,48,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: C.surface, borderRadius: 16, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(26,22,48,0.2)' }}>
+            <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 12 }}>🗑️</div>
+            <div style={{ color: C.text, fontWeight: 800, fontSize: 15, fontFamily: F, textAlign: 'center', marginBottom: 8 }}>Supprimer cet article ?</div>
+            <div style={{ color: C.textSub, fontSize: 13, fontFamily: F, textAlign: 'center', marginBottom: 20 }}>
+              <strong>{article?.designation}</strong> sera supprimé définitivement. Cette action est irréversible.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: '11px 0', background: C.surface, color: C.text, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Annuler</button>
+              <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, border: 'none', borderRadius: 10, padding: '11px 0', background: C.red, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.7 : 1 }}>
+                {deleting ? 'Suppression...' : 'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Panneaux latéraux */}
       {panneau && (
