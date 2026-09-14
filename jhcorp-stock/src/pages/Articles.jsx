@@ -74,12 +74,12 @@ function Autocomplete({ value, articles, onSelect, onClear, placeholder }) {
 }
 
 // ─── Panneau Dérivés MP ───────────────────────────────────────────────────
-// Définit quels produits finis peuvent être issus de cette MP
 function PanneauDerivesMP({ article, allArticles, onClose }) {
   const [derives, setDerives] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
+  const [error, setError] = useState(null)
   const produitsJHC = allArticles.filter(a => a.reference?.startsWith('JHC'))
 
   useEffect(() => {
@@ -87,20 +87,40 @@ function PanneauDerivesMP({ article, allArticles, onClose }) {
       .select('*, produit:produit_id(id, designation, reference, unite)')
       .eq('mp_id', article.id)
       .then(({ data }) => {
-        if (data) setDerives(data.map(d => ({ id: d.id, produit_id: d.produit_id, produit: d.produit })))
+        if (data) setDerives(data.map(d => ({
+          id: d.id,
+          produit_id: d.produit_id,
+          produit: d.produit,
+          pourcentage_cout: d.pourcentage_cout || '',
+          nb_unites_mp: d.nb_unites_mp || 1,
+        })))
         setLoading(false)
       })
   }, [article.id])
 
-  function addDerive() { setDerives(p => [...p, { id: null, produit_id: '', produit: null }]) }
+  const prixMp = article.prix_revient || 0
+
+  function calcCout(d) {
+    const pct = parseFloat(d.pourcentage_cout) || 0
+    const nb = parseFloat(d.nb_unites_mp) || 1
+    return Math.round(prixMp * (pct / 100) * nb)
+  }
+
+  function addDerive() { setDerives(p => [...p, { id: null, produit_id: '', produit: null, pourcentage_cout: '', nb_unites_mp: 1 }]) }
   function removeDerive(i) { setDerives(p => p.filter((_, idx) => idx !== i)) }
 
   async function handleSave() {
-    setSaving(true)
+    setSaving(true); setError(null)
     const valides = derives.filter(d => d.produit_id)
     await supabase.from('mp_derives').delete().eq('mp_id', article.id)
     if (valides.length > 0) {
-      await supabase.from('mp_derives').insert(valides.map(d => ({ mp_id: article.id, produit_id: d.produit_id })))
+      const { error: e } = await supabase.from('mp_derives').insert(valides.map(d => ({
+        mp_id: article.id,
+        produit_id: d.produit_id,
+        pourcentage_cout: parseFloat(d.pourcentage_cout) || 0,
+        nb_unites_mp: parseFloat(d.nb_unites_mp) || 1,
+      })))
+      if (e) { setError(e.message); setSaving(false); return }
     }
     setSuccess(`✅ ${valides.length} produit(s) dérivé(s) sauvegardé(s)`)
     setSaving(false)
@@ -108,40 +128,91 @@ function PanneauDerivesMP({ article, allArticles, onClose }) {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, right: 0, width: 500, height: '100vh', background: C.surface, boxShadow: '-4px 0 24px rgba(26,22,48,0.12)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', top: 0, right: 0, width: 560, height: '100vh', background: C.surface, boxShadow: '-4px 0 24px rgba(26,22,48,0.12)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '18px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ color: C.text, fontWeight: 800, fontSize: 15, fontFamily: F }}>Produits dérivés</div>
-          <div style={{ color: C.textSub, fontSize: 12, fontFamily: F, marginTop: 2 }}>{article.designation} ({article.reference})</div>
-          <div style={{ color: C.textMuted, fontSize: 11, fontFamily: F, marginTop: 4 }}>Définissez tous les produits finis qui peuvent être obtenus depuis cette MP</div>
+          <div style={{ color: C.textSub, fontSize: 12, fontFamily: F, marginTop: 2 }}>{article.designation} · Prix actuel : {article.prix_revient > 0 ? fmt(Math.round(article.prix_revient)) + ' FCFA' : '—'}</div>
+          <div style={{ color: C.textMuted, fontSize: 11, fontFamily: F, marginTop: 4 }}>
+            Coût/unité = Prix MP × % × Nb MP
+          </div>
         </div>
         <span onClick={onClose} style={{ cursor: 'pointer', color: C.textSub, fontSize: 18 }}>✕</span>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px' }}>
         {loading && <div style={{ color: C.textSub, fontFamily: F, fontSize: 13 }}>Chargement...</div>}
         {!loading && (
           <>
-            {derives.map((d, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
-                <div style={{ flex: 1 }}>
+            {/* En-têtes */}
+            {derives.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 70px 80px 90px', gap: 8, marginBottom: 6 }}>
+                {['Produit fini', '% coût', 'Nb MP/u', 'Coût/unité'].map(h => (
+                  <div key={h} style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, fontFamily: F }}>{h}</div>
+                ))}
+              </div>
+            )}
+
+            {derives.map((d, i) => {
+              const cout = d.produit_id && d.pourcentage_cout ? calcCout(d) : null
+              return (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 70px 80px 90px', gap: 8, marginBottom: 10, alignItems: 'center' }}>
                   <Autocomplete
                     value={d.produit}
                     articles={produitsJHC.filter(a => !derives.some((dd, di) => di !== i && dd.produit_id === a.id))}
                     onSelect={a => setDerives(p => p.map((dd, idx) => idx === i ? { ...dd, produit_id: a.id, produit: a } : dd))}
                     onClear={() => setDerives(p => p.map((dd, idx) => idx === i ? { ...dd, produit_id: '', produit: null } : dd))}
-                    placeholder="Rechercher un produit fini JHC..."
+                    placeholder="Rechercher produit JHC..."
                   />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <input type="number" min="0" max="100" step="0.5"
+                      value={d.pourcentage_cout}
+                      onChange={e => setDerives(p => p.map((dd, idx) => idx === i ? { ...dd, pourcentage_cout: e.target.value } : dd))}
+                      onWheel={e => e.target.blur()}
+                      placeholder="0"
+                      style={{ width: '100%', height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 6px', fontFamily: F, fontSize: 12, textAlign: 'right' }}
+                    />
+                    <span style={{ fontSize: 11, color: C.textMuted }}>%</span>
+                  </div>
+                  <input type="number" min="0.1" step="0.25"
+                    value={d.nb_unites_mp}
+                    onChange={e => setDerives(p => p.map((dd, idx) => idx === i ? { ...dd, nb_unites_mp: e.target.value } : dd))}
+                    onWheel={e => e.target.blur()}
+                    placeholder="1"
+                    style={{ height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 8px', fontFamily: F, fontSize: 12, textAlign: 'right', width: '100%' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: cout ? C.green : C.textMuted, fontFamily: F }}>
+                      {cout ? `${fmt(cout)} F` : '—'}
+                    </span>
+                    <span onClick={() => removeDerive(i)} style={{ cursor: 'pointer', color: C.red, fontSize: 16 }}>✕</span>
+                  </div>
                 </div>
-                <span onClick={() => removeDerive(i)} style={{ cursor: 'pointer', color: C.red, fontSize: 16, flexShrink: 0 }}>✕</span>
-              </div>
-            ))}
+              )
+            })}
+
             <button onClick={addDerive} style={{ width: '100%', border: `1.5px dashed ${C.border2}`, borderRadius: 10, padding: '10px 0', background: 'transparent', color: C.indigo, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginTop: 4 }}>
               + Ajouter un produit dérivé
             </button>
+
+            {/* Résumé coûts */}
+            {derives.filter(d => d.produit_id && d.pourcentage_cout).length > 0 && prixMp > 0 && (
+              <div style={{ marginTop: 16, background: C.bg, borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 10, color: C.textMuted, fontWeight: 700, fontFamily: F, marginBottom: 8 }}>RÉSUMÉ DES COÛTS</div>
+                {derives.filter(d => d.produit_id && d.pourcentage_cout).map((d, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: F, color: C.textSub, marginBottom: 4 }}>
+                    <span>{d.produit?.designation} (×{d.nb_unites_mp} MP)</span>
+                    <span style={{ fontWeight: 700, color: C.text }}>{fmt(calcCout(d))} F/unité</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
+
       <div style={{ padding: '14px 20px', borderTop: `1px solid ${C.border}` }}>
+        {error && <div style={{ background: C.redLight, color: C.red, borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, fontFamily: F }}>{error}</div>}
         {success && <div style={{ background: C.greenLight, color: C.green, borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, fontFamily: F }}>{success}</div>}
         <button onClick={handleSave} disabled={saving}
           style={{ width: '100%', border: 'none', borderRadius: 10, padding: 13, background: C.indigo, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
