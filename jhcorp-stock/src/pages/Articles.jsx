@@ -13,6 +13,28 @@ const C = {
 const F = "'Montserrat', sans-serif"
 const CATEGORIES = ['JH Traiteur', 'JH Frais', 'JH Epicerie', 'JH Boisson']
 const UNITES = ['Unite', 'G', 'KG', 'Litre', 'ML', 'Barquette', 'Rouleau']
+
+const TYPES = {
+  'produit_fini': {
+    label: '🛒 Produit fini',
+    description: 'Vendu directement aux clients',
+    sous: {
+      'JH Frais':    { label: '❄️ JH Frais',    prefix: 'JHF' },
+      'JH Traiteur': { label: '🍽️ JH Traiteur', prefix: 'JHT' },
+      'JH Boisson':  { label: '🥤 JH Boisson',  prefix: 'JHB' },
+      'JH Epicerie': { label: '🛒 JH Epicerie', prefix: 'JHE' },
+    }
+  },
+  'production': {
+    label: '🏭 Production',
+    description: 'Utilisé en interne',
+    sous: {
+      'Matière première': { label: '🌿 Matière première', prefix: 'MP' },
+      'Consommable':      { label: '📦 Consommable',      prefix: 'CONSO' },
+    }
+  }
+}
+
 const inputStyle = { width: '100%', height: 38, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 10px', fontFamily: F, fontSize: 13, boxSizing: 'border-box', background: C.surface }
 const labelStyle = { fontSize: 11, color: C.textSub, fontWeight: 700, fontFamily: F, display: 'block', marginBottom: 4 }
 function fmt(n) { return (n || 0).toLocaleString('fr-FR') }
