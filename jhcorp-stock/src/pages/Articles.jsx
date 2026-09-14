@@ -355,17 +355,65 @@ function PanneauComposition({ article, allArticles, onClose, onSaved }) {
 // ─── Formulaire Article ───────────────────────────────────────────────────
 function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
   const isEdit = !!article
-  const isMP = article?.reference?.startsWith('MP')
-  const isJHC = article?.reference?.startsWith('JHC')
+
+  // Détecter le type/sous-type depuis la référence ou catégorie existante
+  function detectType(a) {
+    if (!a) return { niveau1: '', niveau2: '' }
+    const ref = a.reference || ''
+    const cat = a.categorie || ''
+    if (ref.startsWith('MP') || cat === 'Matière première') return { niveau1: 'production', niveau2: 'Matière première' }
+    if (ref.startsWith('CONSO') || cat === 'Consommable') return { niveau1: 'production', niveau2: 'Consommable' }
+    if (ref.startsWith('JHF') || cat === 'JH Frais') return { niveau1: 'produit_fini', niveau2: 'JH Frais' }
+    if (ref.startsWith('JHT') || cat === 'JH Traiteur') return { niveau1: 'produit_fini', niveau2: 'JH Traiteur' }
+    if (ref.startsWith('JHB') || cat === 'JH Boisson') return { niveau1: 'produit_fini', niveau2: 'JH Boisson' }
+    if (ref.startsWith('JHE') || cat === 'JH Epicerie') return { niveau1: 'produit_fini', niveau2: 'JH Epicerie' }
+    return { niveau1: '', niveau2: '' }
+  }
+
+  const initType = detectType(article)
+  const [niveau1, setNiveau1] = useState(initType.niveau1)
+  const [niveau2, setNiveau2] = useState(initType.niveau2)
+  const [genRef, setGenRef] = useState(article?.reference || '')
   const [form, setForm] = useState({
-    reference: '', designation: '', categorie: 'JH Frais', unite: 'Unite',
-    stock_minimum: 0, vendable_directement: false, utilise_en_recette: false,
-    photo_url: '', prix_vente: '',
-    ...(article || {})
+    reference: article?.reference || '',
+    designation: article?.designation || '',
+    unite: article?.unite || 'Unite',
+    stock_minimum: article?.stock_minimum || 0,
+    vendable_directement: article?.vendable_directement || false,
+    utilise_en_recette: article?.utilise_en_recette || false,
+    photo_url: article?.photo_url || '',
+    prix_vente: article?.prix_vente || '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
-  const [panneau, setPanneau] = useState(null) // 'derives' | 'composition' | null
+  const [panneau, setPanneau] = useState(null)
+
+  const isProduitFini = niveau1 === 'produit_fini'
+  const isMP = niveau2 === 'Matière première'
+  const isCONSO = niveau2 === 'Consommable'
+  const sous = niveau1 ? Object.entries(TYPES[niveau1].sous) : []
+  const prefix = niveau1 && niveau2 ? TYPES[niveau1].sous[niveau2]?.prefix : null
+
+  // Générer référence auto quand niveau2 change
+  useEffect(() => {
+    if (isEdit || !prefix) return
+    const existing = allArticles
+      .map(a => a.reference || '')
+      .filter(r => r.startsWith(prefix))
+      .map(r => parseInt(r.replace(prefix, ''), 10))
+      .filter(n => !isNaN(n))
+    const max = existing.length > 0 ? Math.max(...existing) : 0
+    const next = `${prefix}${String(max + 1).padStart(3, '0')}`
+    setGenRef(next)
+    setForm(f => ({ ...f, reference: next }))
+  }, [niveau2, prefix, isEdit])
+
+  function handleNiveau1(v) {
+    setNiveau1(v)
+    setNiveau2('')
+    setGenRef('')
+    setForm(f => ({ ...f, reference: '' }))
+  }
 
   const prixRevient = article?.prix_revient || 0
   const prixVente = parseFloat(form.prix_vente) || 0
@@ -373,14 +421,17 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
   const margeP = prixVente > 0 ? Math.round((marge / prixVente) * 100) : null
 
   async function handleSave() {
-    if (!form.reference.trim() || !form.designation.trim()) { setError('Référence et Désignation sont obligatoires'); return }
+    if (!niveau1 || !niveau2) { setError('Sélectionnez le type de produit'); return }
+    if (!form.reference.trim() || !form.designation.trim()) { setError('Référence et Désignation obligatoires'); return }
     setSaving(true); setError(null)
     const payload = {
-      reference: form.reference.trim(), designation: form.designation.trim(),
-      categorie: form.categorie, unite: form.unite,
+      reference: form.reference.trim(),
+      designation: form.designation.trim(),
+      categorie: niveau2,
+      unite: form.unite,
       stock_minimum: Number(form.stock_minimum) || 0,
-      vendable_directement: form.vendable_directement,
-      utilise_en_recette: form.utilise_en_recette,
+      vendable_directement: isProduitFini,
+      utilise_en_recette: isMP,
       photo_url: form.photo_url?.trim() || null,
       prix_vente: parseFloat(form.prix_vente) || null,
     }
@@ -395,12 +446,57 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
   return (
     <>
       <div style={{ background: 'rgba(26,22,48,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', borderRadius: 14 }}>
-        <div style={{ background: C.surface, borderRadius: 16, padding: 24, width: 500, boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ background: C.surface, borderRadius: 16, padding: 24, width: 520, boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
             <h3 style={{ color: C.text, fontSize: 17, fontWeight: 800, fontFamily: F, margin: 0 }}>{isEdit ? 'Modifier article' : 'Nouvel article'}</h3>
             <span style={{ cursor: 'pointer', color: C.textSub, fontSize: 18 }} onClick={onClose}>✕</span>
           </div>
+
           {error && <div style={{ background: C.redLight, color: C.red, borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 12, fontFamily: F }}>{error}</div>}
+
+          {/* NIVEAU 1 : Type de produit */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>Type de produit *</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {Object.entries(TYPES).map(([key, t]) => (
+                <div key={key} onClick={() => handleNiveau1(key)}
+                  style={{ border: `2px solid ${niveau1 === key ? C.indigo : C.border2}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', background: niveau1 === key ? C.indigoLight : C.surface }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: niveau1 === key ? C.indigo : C.text, fontFamily: F }}>{t.label}</div>
+                  <div style={{ fontSize: 10, color: C.textMuted, fontFamily: F, marginTop: 2 }}>{t.description}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* NIVEAU 2 : Sous-catégorie */}
+          {niveau1 && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Sous-catégorie *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: sous.length > 2 ? '1fr 1fr' : '1fr 1fr', gap: 8 }}>
+                {sous.map(([key, s]) => (
+                  <div key={key} onClick={() => setNiveau2(key)}
+                    style={{ border: `2px solid ${niveau2 === key ? C.indigo : C.border2}`, borderRadius: 10, padding: '10px 14px', cursor: 'pointer', background: niveau2 === key ? C.indigoLight : C.surface, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: niveau2 === key ? C.indigo : C.text, fontFamily: F }}>{s.label}</div>
+                      <div style={{ fontSize: 10, color: C.textMuted, fontFamily: F }}>{s.prefix}001, {s.prefix}002...</div>
+                    </div>
+                    {niveau2 === key && <span style={{ color: C.indigo, fontSize: 16 }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Référence auto-générée */}
+          {niveau2 && (
+            <div style={{ background: C.bg, borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>🔖</span>
+              <div>
+                <div style={{ fontSize: 10, color: C.textMuted, fontFamily: F, fontWeight: 700 }}>RÉFÉRENCE {isEdit ? 'ACTUELLE' : 'GÉNÉRÉE AUTO'}</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: C.indigo, fontFamily: F }}>{form.reference || '...'}</div>
+              </div>
+            </div>
+          )}
 
           {/* Image */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, background: C.bg, borderRadius: 12, padding: '12px 14px' }}>
@@ -411,24 +507,13 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={labelStyle}>Référence *</label>
-              <input value={form.reference} onChange={ev => setForm({ ...form, reference: ev.target.value })} placeholder="ex: JHC001" style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Catégorie</label>
-              <select value={form.categorie} onChange={ev => setForm({ ...form, categorie: ev.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-
+          {/* Désignation */}
           <div style={{ marginBottom: 12 }}>
             <label style={labelStyle}>Désignation *</label>
             <input value={form.designation} onChange={ev => setForm({ ...form, designation: ev.target.value })} placeholder="ex: Cocktail Papaye & Pastèque 250g" style={inputStyle} />
           </div>
 
+          {/* Unité + Stock min */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
               <label style={labelStyle}>Unité</label>
@@ -442,8 +527,8 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
             </div>
           </div>
 
-          {/* Prix de vente (JHC uniquement) */}
-          {isJHC && (
+          {/* Prix de vente (produit fini uniquement) */}
+          {isProduitFini && (
             <div style={{ marginBottom: 12 }}>
               <label style={labelStyle}>Prix de vente (FCFA)</label>
               <input type="number" min="0" value={form.prix_vente || ''} onChange={ev => setForm({ ...form, prix_vente: ev.target.value })} onWheel={e => e.target.blur()} placeholder="ex: 2500" style={inputStyle} />
@@ -451,7 +536,7 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
           )}
 
           {/* Marge */}
-          {isEdit && isJHC && prixRevient > 0 && prixVente > 0 && (
+          {isEdit && isProduitFini && prixRevient > 0 && prixVente > 0 && (
             <div style={{ background: marge >= 0 ? C.greenLight : C.redLight, borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, textAlign: 'center' }}>
               {[
                 { label: 'PRIX REVIENT', val: `${fmt(Math.round(prixRevient))} F`, color: C.text },
@@ -466,27 +551,16 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.text, fontFamily: F, cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.vendable_directement} onChange={ev => setForm({ ...form, vendable_directement: ev.target.checked })} />
-              Vendable
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: C.text, fontFamily: F, cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.utilise_en_recette} onChange={ev => setForm({ ...form, utilise_en_recette: ev.target.checked })} />
-              Utilisé en recette
-            </label>
-          </div>
-
-          {/* Boutons panneau */}
+          {/* Boutons panneaux */}
           {isEdit && (
-            <div style={{ display: 'grid', gridTemplateColumns: isMP && isJHC ? '1fr 1fr' : '1fr', gap: 8, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMP ? '1fr' : isProduitFini ? '1fr' : '1fr', gap: 8, marginBottom: 14 }}>
               {isMP && (
                 <button onClick={() => setPanneau('derives')}
                   style={{ border: `1.5px solid ${C.green}`, borderRadius: 10, padding: '10px 0', background: C.greenLight, color: C.green, fontFamily: F, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                  🌿 Produits dérivés ({article.reference})
+                  🌿 Produits dérivés
                 </button>
               )}
-              {isJHC && (
+              {isProduitFini && (
                 <button onClick={() => setPanneau('composition')}
                   style={{ border: `1.5px solid ${C.indigo}`, borderRadius: 10, padding: '10px 0', background: C.indigoLight, color: C.indigo, fontFamily: F, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                   🧩 Emballage & Composition
@@ -494,8 +568,6 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
               )}
             </div>
           )}
-
-
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} disabled={saving} style={{ flex: 1, border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: 12, background: C.surface, color: C.text, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Annuler</button>
@@ -509,7 +581,6 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
         </div>
       </div>
 
-      {/* Panneaux latéraux */}
       {panneau && (
         <>
           <div onClick={() => setPanneau(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,22,48,0.2)', zIndex: 199 }} />
@@ -520,6 +591,7 @@ function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
     </>
   )
 }
+
 
 // ─── Page Articles ────────────────────────────────────────────────────────
 export default function Articles() {
@@ -556,7 +628,7 @@ export default function Articles() {
 
   const filtres = [
     { id: 'tous', label: 'Tous' },
-    { id: 'jhc', label: 'JHC', match: a => a.reference?.startsWith('JHC') },
+    { id: 'fini', label: 'Produits finis', match: a => ['JHF','JHT','JHB','JHE'].some(p => a.reference?.startsWith(p)) },
     { id: 'mp', label: 'MP', match: a => a.reference?.startsWith('MP') },
     { id: 'conso', label: 'CONSO', match: a => a.reference?.startsWith('CONSO') },
   ]
@@ -593,7 +665,12 @@ export default function Articles() {
         <select value={filtreCategorie} onChange={e => setFiltreCategorie(e.target.value)}
           style={{ height: 38, border: `1.5px solid ${filtreCategorie ? C.indigo : C.border2}`, borderRadius: 10, padding: '0 12px', fontFamily: F, fontSize: 12, cursor: 'pointer', background: filtreCategorie ? C.indigoLight : C.surface, color: filtreCategorie ? C.indigo : C.text, fontWeight: filtreCategorie ? 700 : 400 }}>
           <option value="">Toutes catégories</option>
-          {['JH Traiteur','JH Frais','JH Epicerie','JH Boisson'].map(c => <option key={c} value={c}>{c}</option>)}
+          <optgroup label="Produits finis">
+            {['JH Frais','JH Traiteur','JH Boisson','JH Epicerie'].map(c => <option key={c} value={c}>{c}</option>)}
+          </optgroup>
+          <optgroup label="Production">
+            {['Matière première','Consommable'].map(c => <option key={c} value={c}>{c}</option>)}
+          </optgroup>
         </select>
       </div>
 
@@ -604,7 +681,7 @@ export default function Articles() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
         {liste.map(a => {
           const status = stockStatus(a)
-          const isJHC = a.reference?.startsWith('JHC')
+          const isJHC = ['JHF','JHT','JHB','JHE'].some(p => a.reference?.startsWith(p))
           const prixR = a.prix_revient || 0
           const prixV = a.prix_vente || 0
           const marge = prixV - prixR
