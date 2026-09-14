@@ -580,7 +580,7 @@ export default function Articles() {
         <button onClick={() => setCreating(true)} style={{ border: 'none', borderRadius: 10, padding: '10px 18px', background: C.indigo, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>+ Nouveau</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', position: 'sticky', top: 0, zIndex: 10, background: C.bg, paddingTop: 8, paddingBottom: 8 }}>
         <input placeholder="Rechercher..." value={search} onChange={ev => setSearch(ev.target.value)}
           style={{ flex: 1, minWidth: 200, height: 38, border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: '0 14px', fontFamily: F, fontSize: 13, boxSizing: 'border-box' }} />
         {filtres.map(f => (
@@ -619,7 +619,9 @@ export default function Articles() {
                 <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
                   <span style={{ background: status.bg, color: status.color, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, fontFamily: F }}>{status.label}</span>
                   {isJHC && margeP !== null && (
-                    <span style={{ background: marge >= 0 ? C.greenLight : C.redLight, color: marge >= 0 ? C.green : C.red, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, fontFamily: F }}>Marge {margeP}%</span>
+                    <span style={{ background: marge >= 0 ? C.greenLight : C.redLight, color: marge >= 0 ? C.green : C.red, fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99, fontFamily: F }}>
+                      {fmt(Math.round(marge))} F · {margeP}%
+                    </span>
                   )}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: isJHC ? '1fr 1fr 1fr' : '1fr 1fr', gap: 6 }}>
