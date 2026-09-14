@@ -95,14 +95,6 @@ function PanneauDerivesMP({ article, allArticles, onClose }) {
   function addDerive() { setDerives(p => [...p, { id: null, produit_id: '', produit: null }]) }
   function removeDerive(i) { setDerives(p => p.filter((_, idx) => idx !== i)) }
 
-  async function handleDelete() {
-    setDeleting(true)
-    const { error } = await supabase.from('articles').delete().eq('id', article.id)
-    setDeleting(false)
-    if (error) { setError('Impossible de supprimer : ' + error.message); setConfirmDelete(false); return }
-    onSaved()
-  }
-
   async function handleSave() {
     setSaving(true)
     const valides = derives.filter(d => d.produit_id)
@@ -290,7 +282,7 @@ function PanneauComposition({ article, allArticles, onClose, onSaved }) {
 }
 
 // ─── Formulaire Article ───────────────────────────────────────────────────
-function ArticleForm({ article, onClose, onSaved, allArticles }) {
+function ArticleForm({ article, onClose, onSaved, onDelete, allArticles }) {
   const isEdit = !!article
   const isMP = article?.reference?.startsWith('MP')
   const isJHC = article?.reference?.startsWith('JHC')
@@ -303,8 +295,6 @@ function ArticleForm({ article, onClose, onSaved, allArticles }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [panneau, setPanneau] = useState(null) // 'derives' | 'composition' | null
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   const prixRevient = article?.prix_revient || 0
   const prixVente = parseFloat(form.prix_vente) || 0
@@ -438,8 +428,8 @@ function ArticleForm({ article, onClose, onSaved, allArticles }) {
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onClose} disabled={saving} style={{ flex: 1, border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: 12, background: C.surface, color: C.text, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Annuler</button>
-            {isEdit && !confirmDelete && (
-              <button onClick={() => setConfirmDelete(true)} style={{ border: `1.5px solid ${C.red}`, borderRadius: 10, padding: 12, background: C.redLight, color: C.red, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🗑️</button>
+            {isEdit && (
+              <button onClick={() => onDelete(article)} style={{ border: `1.5px solid ${C.red}`, borderRadius: 10, padding: 12, background: C.redLight, color: C.red, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>🗑️</button>
             )}
             <button onClick={handleSave} disabled={saving} style={{ flex: 1, border: 'none', borderRadius: 10, padding: 12, background: C.indigo, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
               {saving ? 'Enregistrement...' : isEdit ? 'Modifier' : 'Créer'}
@@ -447,25 +437,6 @@ function ArticleForm({ article, onClose, onSaved, allArticles }) {
           </div>
         </div>
       </div>
-
-      {/* Modale confirmation suppression */}
-      {confirmDelete && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,22,48,0.6)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: C.surface, borderRadius: 16, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(26,22,48,0.2)' }}>
-            <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 12 }}>🗑️</div>
-            <div style={{ color: C.text, fontWeight: 800, fontSize: 15, fontFamily: F, textAlign: 'center', marginBottom: 8 }}>Supprimer cet article ?</div>
-            <div style={{ color: C.textSub, fontSize: 13, fontFamily: F, textAlign: 'center', marginBottom: 20 }}>
-              <strong>{article?.designation}</strong> sera supprimé définitivement. Cette action est irréversible.
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: '11px 0', background: C.surface, color: C.text, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Annuler</button>
-              <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, border: 'none', borderRadius: 10, padding: '11px 0', background: C.red, color: '#fff', fontFamily: F, fontWeight: 700, fontSize: 13, cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.7 : 1 }}>
-                {deleting ? 'Suppression...' : 'Supprimer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Panneaux latéraux */}
       {panneau && (
@@ -488,6 +459,8 @@ export default function Articles() {
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)
   const [creating, setCreating] = useState(false)
+  const [toDelete, setToDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function loadArticles() {
     setLoading(true); setError(null)
@@ -498,6 +471,16 @@ export default function Articles() {
   }
 
   useEffect(() => { loadArticles() }, [])
+
+  async function handleDelete() {
+    if (!toDelete) return
+    setDeleting(true)
+    await supabase.from('articles').delete().eq('id', toDelete.id)
+    setDeleting(false)
+    setToDelete(null)
+    setEditing(null)
+    loadArticles()
+  }
 
   const filtres = [
     { id: 'tous', label: 'Tous' },
@@ -514,7 +497,7 @@ export default function Articles() {
   })
 
   if (editing || creating) {
-    return <ArticleForm article={editing} onClose={() => { setEditing(null); setCreating(false) }} onSaved={() => { setEditing(null); setCreating(false); loadArticles() }} allArticles={articles} />
+    return <ArticleForm article={editing} onClose={() => { setEditing(null); setCreating(false) }} onSaved={() => { setEditing(null); setCreating(false); loadArticles() }} onDelete={(a) => { setToDelete(a) }} allArticles={articles} />
   }
 
   return (
@@ -582,6 +565,24 @@ export default function Articles() {
           )
         })}
       </div>
+      {/* Modale suppression */}
+      {toDelete && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,22,48,0.6)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: C.surface, borderRadius: 16, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(26,22,48,0.2)', fontFamily: F }}>
+            <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 12 }}>🗑️</div>
+            <div style={{ color: C.text, fontWeight: 800, fontSize: 15, textAlign: 'center', marginBottom: 8 }}>Supprimer cet article ?</div>
+            <div style={{ color: C.textSub, fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
+              <strong>{toDelete.designation}</strong> sera supprimé définitivement.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setToDelete(null)} style={{ flex: 1, border: `1.5px solid ${C.border2}`, borderRadius: 10, padding: 12, background: C.surface, color: C.text, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Annuler</button>
+              <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, border: 'none', borderRadius: 10, padding: 12, background: C.red, color: '#fff', fontWeight: 700, fontSize: 13, cursor: deleting ? 'default' : 'pointer', opacity: deleting ? 0.7 : 1 }}>
+                {deleting ? 'Suppression...' : 'Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
