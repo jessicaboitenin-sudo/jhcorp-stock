@@ -456,6 +456,7 @@ export default function Articles() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filtre, setFiltre] = useState('tous')
+  const [filtreCategorie, setFiltreCategorie] = useState('')
   const [search, setSearch] = useState('')
   const [editing, setEditing] = useState(null)
   const [creating, setCreating] = useState(false)
@@ -493,7 +494,8 @@ export default function Articles() {
     const f = filtres.find(f => f.id === filtre)
     const matchFiltre = filtre === 'tous' || (f?.match ? f.match(a) : true)
     const matchSearch = !search || a.designation.toLowerCase().includes(search.toLowerCase()) || a.reference.toLowerCase().includes(search.toLowerCase())
-    return matchFiltre && matchSearch
+    const matchCategorie = !filtreCategorie || a.categorie === filtreCategorie
+    return matchFiltre && matchSearch && matchCategorie
   })
 
   if (editing || creating) {
@@ -517,6 +519,11 @@ export default function Articles() {
             fontFamily: F, fontWeight: 700, fontSize: 12, cursor: 'pointer'
           }}>{f.label}</button>
         ))}
+        <select value={filtreCategorie} onChange={e => setFiltreCategorie(e.target.value)}
+          style={{ height: 38, border: `1.5px solid ${filtreCategorie ? C.indigo : C.border2}`, borderRadius: 10, padding: '0 12px', fontFamily: F, fontSize: 12, cursor: 'pointer', background: filtreCategorie ? C.indigoLight : C.surface, color: filtreCategorie ? C.indigo : C.text, fontWeight: filtreCategorie ? 700 : 400 }}>
+          <option value="">Toutes catégories</option>
+          {['JH Traiteur','JH Frais','JH Epicerie','JH Boisson'].map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
       </div>
 
       {loading && <div style={{ color: C.textSub, fontFamily: F, fontSize: 13, padding: 20 }}>Chargement...</div>}
