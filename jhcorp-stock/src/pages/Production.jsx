@@ -105,17 +105,18 @@ function SaisieProduction({ mp, onBack, onSaved }) {
   // Calcul prix de revient par produit (répartition au prorata des quantités pondérées par prix de vente)
   function calcPrixRevient(produitId) {
     const qte = parseFloat(qtesProduites[produitId]) || 0
-    if (!qte || !coutTotal) return null
-    const produit = derives.find(d => d.produit_id === produitId)?.produit
-    if (!produit) return null
+    if (!qte) return null
+    const derive = derives.find(d => d.produit_id === produitId)
+    if (!derive) return null
 
-    // Répartition : coût total MP / total des pièces produites (simple, proportionnel à la quantité)
-    const totalQtes = Object.values(qtesProduites).reduce((s, q) => s + (parseFloat(q) || 0), 0)
-    if (totalQtes === 0) return null
+    const prixMp = mp.prix_revient || 0
+    const pct = parseFloat(derive.pourcentage_cout) || 0
+    const nbMp = parseFloat(derive.nb_unites_mp) || 1
+    const coutComposants = derive.produit?.cout_composants || 0
 
-    const coutMpParPiece = (coutTotal * (qte / totalQtes)) / qte
-    const coutComposants = produit.cout_composants || 0
-    return Math.round((coutMpParPiece + coutComposants) * 100) / 100
+    // Prix revient = prix MP × % × nb MP/unité + composants
+    const coutMp = prixMp * (pct / 100) * nbMp
+    return Math.round((coutMp + coutComposants) * 100) / 100
   }
 
   const lignesAvecQte = derives.filter(d => parseFloat(qtesProduites[d.produit_id]) > 0)
@@ -138,10 +139,17 @@ function SaisieProduction({ mp, onBack, onSaved }) {
     }).select().single()
     if (e1) { setError(e1.message); setSaving(false); return }
 
-    // 2. Déduire MP du stock
-    await supabase.from('articles').update({ stock_actuel: mp.stock_actuel - qteUsed }).eq('id', mp.id)
+    // 2. Calculer la vraie quantité MP consommée (somme des nb_unites_mp × qtes produites)
+    let mpTotalConsomme = 0
+    for (const d of lignesAvecQte) {
+      const qte = parseFloat(qtesProduites[d.produit_id])
+      const nbMp = parseFloat(d.nb_unites_mp) || 1
+      mpTotalConsomme += qte * nbMp
+    }
+    // Déduire MP du stock
+    await supabase.from('articles').update({ stock_actuel: Math.max(0, mp.stock_actuel - mpTotalConsomme) }).eq('id', mp.id)
     await supabase.from('mouvements_stock').insert({
-      article_id: mp.id, type: 'sortie_production', quantite: qteUsed,
+      article_id: mp.id, type: 'sortie_production', quantite: mpTotalConsomme,
       date: new Date(date).toISOString(), reference_document: `Production depuis ${mp.designation}`,
       prix_unitaire: prixMp,
     })
