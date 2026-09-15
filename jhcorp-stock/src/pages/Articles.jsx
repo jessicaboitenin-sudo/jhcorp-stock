@@ -246,33 +246,53 @@ function PanneauDerivesMP({ article, allArticles, onClose }) {
 }
 
 // ─── Panneau Composition JHC ──────────────────────────────────────────────
-// Définit emballage + étiquette + prix de vente pour un produit fini JHC
 function PanneauComposition({ article, allArticles, onClose, onSaved }) {
   const [lignes, setLignes] = useState([])
   const [prixVente, setPrixVente] = useState(article.prix_vente ? String(article.prix_vente) : '')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
-  const consommables = allArticles.filter(a => a.reference?.startsWith('CONSO') || a.reference?.startsWith('MP'))
+
+  // Séparer MP et CONSO
+  const articlesMP = allArticles.filter(a => a.reference?.startsWith('MP'))
+  const articlesCONSO = allArticles.filter(a => a.reference?.startsWith('CONSO'))
 
   useEffect(() => {
     supabase.from('compositions')
       .select('*, composant:composant_id(id, designation, reference, unite, prix_revient)')
       .eq('article_id', article.id)
       .then(({ data }) => {
-        if (data) setLignes(data.map(d => ({ id: d.id, composant_id: d.composant_id, composant: d.composant, quantite: d.quantite })))
+        if (data) setLignes(data.map(d => ({
+          id: d.id, composant_id: d.composant_id, composant: d.composant, quantite: d.quantite
+        })))
         setLoading(false)
       })
   }, [article.id])
 
-  const coutComposants = lignes.reduce((s, l) => s + ((l.composant?.prix_revient || 0) * (parseFloat(l.quantite) || 0)), 0)
-  const prixR = article.prix_revient || 0
+  const lignesMP = lignes.filter(l => l.composant?.reference?.startsWith('MP'))
+  const lignesCONSO = lignes.filter(l => l.composant?.reference?.startsWith('CONSO'))
+
+  const coutMP = lignesMP.reduce((s, l) => s + ((l.composant?.prix_revient || 0) * (parseFloat(l.quantite) || 0)), 0)
+  const coutCONSO = lignesCONSO.reduce((s, l) => s + ((l.composant?.prix_revient || 0) * (parseFloat(l.quantite) || 0)), 0)
+  const coutTotal = coutMP + coutCONSO
   const prixV = parseFloat(prixVente) || 0
-  const marge = prixV - prixR
+  const marge = prixV - coutTotal
   const margeP = prixV > 0 ? Math.round((marge / prixV) * 100) : null
 
-  function addLigne() { setLignes(p => [...p, { id: null, composant_id: '', composant: null, quantite: 1 }]) }
+  function addLigne(type) {
+    setLignes(p => [...p, { id: null, composant_id: '', composant: null, quantite: 1, _type: type }])
+  }
   function removeLigne(i) { setLignes(p => p.filter((_, idx) => idx !== i)) }
+  function updateLigne(i, field, val) {
+    setLignes(p => p.map((l, idx) => {
+      if (idx !== i) return l
+      if (field === 'composant_id') {
+        const found = allArticles.find(a => a.id === val)
+        return { ...l, composant_id: val, composant: found || null }
+      }
+      return { ...l, [field]: val }
+    }))
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -283,18 +303,64 @@ function PanneauComposition({ article, allArticles, onClose, onSaved }) {
         article_id: article.id, composant_id: l.composant_id, quantite: parseFloat(l.quantite)
       })))
     }
-    // Mettre à jour prix de vente + prix de revient (composants uniquement, le reste vient de la production)
     await supabase.from('articles').update({
       prix_vente: prixV || null,
-      cout_composants: Math.round(coutComposants * 100) / 100,
+      prix_revient: Math.round(coutTotal * 100) / 100,
+      cout_composants: Math.round(coutCONSO * 100) / 100,
     }).eq('id', article.id)
     setSaving(false)
     setSuccess('✅ Composition sauvegardée')
     setTimeout(() => { setSuccess(null); onSaved() }, 2000)
   }
 
+  function SectionComposition({ titre, lignesFiltrees, articles, type, couleur, bg, icon }) {
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: couleur, fontFamily: F }}>{icon} {titre}</div>
+          <button onClick={() => addLigne(type)} style={{ border: `1.5px solid ${couleur}`, borderRadius: 8, padding: '4px 12px', background: bg, color: couleur, fontFamily: F, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>+ Ajouter</button>
+        </div>
+        {lignesFiltrees.length === 0 && (
+          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: F, fontStyle: 'italic', padding: '6px 0' }}>Aucun {titre.toLowerCase()} configuré</div>
+        )}
+        {lignesFiltrees.map((l, i) => {
+          const globalIdx = lignes.indexOf(l)
+          const cout = l.composant?.prix_revient ? Math.round(l.composant.prix_revient * parseFloat(l.quantite) * 100) / 100 : null
+          return (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 80px 28px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+              <select value={l.composant_id || ''} onChange={e => updateLigne(globalIdx, 'composant_id', e.target.value)}
+                style={{ height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 8px', fontFamily: F, fontSize: 12, cursor: 'pointer' }}>
+                <option value="">— Choisir —</option>
+                {articles.map(a => (
+                  <option key={a.id} value={a.id}>{a.designation} — {fmt(Math.round(a.prix_revient || 0))} F/{a.unite}</option>
+                ))}
+              </select>
+              <input type="number" min="0.001" step="0.001" value={l.quantite}
+                onChange={e => updateLigne(globalIdx, 'quantite', e.target.value)}
+                onWheel={e => e.target.blur()}
+                style={{ height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 8px', fontFamily: F, fontSize: 12, textAlign: 'right' }} />
+              <div style={{ fontSize: 11, fontWeight: 700, color: cout ? couleur : C.textMuted, fontFamily: F, textAlign: 'right' }}>
+                {cout ? `${fmt(cout)} F` : '—'}
+              </div>
+              <span onClick={() => removeLigne(globalIdx)} style={{ cursor: 'pointer', color: C.red, fontSize: 16, textAlign: 'center' }}>✕</span>
+            </div>
+          )
+        })}
+        {/* Total section */}
+        {lignesFiltrees.length > 0 && (
+          <div style={{ background: bg, borderRadius: 8, padding: '6px 10px', display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: F }}>
+            <span style={{ color: couleur, fontWeight: 700 }}>Total {titre}</span>
+            <span style={{ color: couleur, fontWeight: 900 }}>
+              {fmt(Math.round(lignesFiltrees.reduce((s, l) => s + ((l.composant?.prix_revient || 0) * (parseFloat(l.quantite) || 0)), 0)))} F
+            </span>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div style={{ position: 'fixed', top: 0, right: 0, width: 520, height: '100vh', background: C.surface, boxShadow: '-4px 0 24px rgba(26,22,48,0.12)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', top: 0, right: 0, width: 540, height: '100vh', background: C.surface, boxShadow: '-4px 0 24px rgba(26,22,48,0.12)', zIndex: 200, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '18px 20px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ color: C.text, fontWeight: 800, fontSize: 15, fontFamily: F }}>Composition & Prix</div>
@@ -304,62 +370,61 @@ function PanneauComposition({ article, allArticles, onClose, onSaved }) {
       </div>
 
       {/* Résumé prix */}
-      <div style={{ margin: '14px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        {[
-          { label: 'COÛT MP (production)', val: prixR > 0 ? `${fmt(Math.round(prixR - coutComposants))} F` : '— F', color: C.indigo },
-          { label: 'COÛT COMPOSANTS', val: `${fmt(Math.round(coutComposants))} F`, color: C.orange },
-          { label: 'PRIX DE REVIENT TOTAL', val: `${fmt(Math.round(prixR))} F`, color: C.text },
-        ].map(c => (
-          <div key={c.label} style={{ background: C.bg, borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: C.textMuted, fontFamily: F, fontWeight: 700 }}>{c.label}</div>
-            <div style={{ fontSize: 14, fontWeight: 900, color: c.color, fontFamily: F }}>{c.val}</div>
+      <div style={{ padding: '14px 20px', borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+          <div style={{ background: C.indigoLight, borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: C.textMuted, fontFamily: F, fontWeight: 700 }}>COÛT MATIÈRES</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: C.indigo, fontFamily: F }}>{fmt(Math.round(coutMP))} F</div>
           </div>
-        ))}
+          <div style={{ background: C.orangeLight, borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: C.textMuted, fontFamily: F, fontWeight: 700 }}>COÛT EMBALLAGE</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: C.orange, fontFamily: F }}>{fmt(Math.round(coutCONSO))} F</div>
+          </div>
+          <div style={{ background: C.bg, borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: C.textMuted, fontFamily: F, fontWeight: 700 }}>PRIX REVIENT TOTAL</div>
+            <div style={{ fontSize: 15, fontWeight: 900, color: C.text, fontFamily: F }}>{fmt(Math.round(coutTotal))} F</div>
+          </div>
+        </div>
+        {/* Prix de vente + marge */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'center' }}>
+          <div>
+            <label style={labelStyle}>Prix de vente (FCFA)</label>
+            <input type="number" min="0" value={prixVente} onChange={e => setPrixVente(e.target.value)}
+              onWheel={e => e.target.blur()} placeholder="ex: 600" style={{ ...inputStyle, height: 34 }} />
+          </div>
+          {prixV > 0 && (
+            <div style={{ background: marge >= 0 ? C.greenLight : C.redLight, borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 9, color: C.textMuted, fontFamily: F, fontWeight: 700 }}>MARGE</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: marge >= 0 ? C.green : C.red, fontFamily: F }}>{fmt(Math.round(marge))} F</div>
+              {margeP !== null && <div style={{ fontSize: 11, color: marge >= 0 ? C.green : C.red, fontFamily: F }}>{margeP}%</div>}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Marge */}
-      {prixV > 0 && (
-        <div style={{ margin: '10px 20px 0', background: marge >= 0 ? C.greenLight : C.redLight, borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, fontFamily: F, color: C.text }}>Prix de vente : <strong>{fmt(prixV)} FCFA</strong></div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: marge >= 0 ? C.green : C.red, fontFamily: F }}>Marge : {fmt(Math.round(marge))} F</div>
-            {margeP !== null && <div style={{ fontSize: 11, color: marge >= 0 ? C.green : C.red, fontFamily: F }}>{margeP}%</div>}
-          </div>
-        </div>
-      )}
-
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px' }}>
-        {/* Prix de vente */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>Prix de vente (FCFA)</label>
-          <input type="number" min="0" value={prixVente} onChange={e => setPrixVente(e.target.value)}
-            onWheel={e => e.target.blur()} placeholder="ex: 2500" style={inputStyle} />
-        </div>
-
-        {/* Composants */}
-        <div style={{ color: C.text, fontWeight: 800, fontSize: 13, fontFamily: F, marginBottom: 10 }}>Emballage & Étiquettes</div>
         {loading && <div style={{ color: C.textSub, fontFamily: F, fontSize: 13 }}>Chargement...</div>}
-        {!loading && lignes.map((l, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 28px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-            <Autocomplete
-              value={l.composant}
-              articles={consommables}
-              onSelect={a => setLignes(p => p.map((ll, idx) => idx === i ? { ...ll, composant_id: a.id, composant: a } : ll))}
-              onClear={() => setLignes(p => p.map((ll, idx) => idx === i ? { ...ll, composant_id: '', composant: null } : ll))}
-              placeholder="Emballage ou étiquette..."
-            />
-            <input type="number" min="0.001" step="0.001" value={l.quantite}
-              onChange={e => setLignes(p => p.map((ll, idx) => idx === i ? { ...ll, quantite: e.target.value } : ll))}
-              onWheel={e => e.target.blur()}
-              style={{ height: 36, border: `1.5px solid ${C.border2}`, borderRadius: 8, padding: '0 8px', fontFamily: F, fontSize: 12, textAlign: 'right' }}
-            />
-            <span onClick={() => removeLigne(i)} style={{ cursor: 'pointer', color: C.red, fontSize: 16, textAlign: 'center' }}>✕</span>
-          </div>
-        ))}
         {!loading && (
-          <button onClick={addLigne} style={{ width: '100%', border: `1.5px dashed ${C.border2}`, borderRadius: 10, padding: '10px 0', background: 'transparent', color: C.indigo, fontFamily: F, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginTop: 4 }}>
-            + Ajouter emballage / étiquette
-          </button>
+          <>
+            <SectionComposition
+              titre="Matières premières"
+              lignesFiltrees={lignes.filter(l => l.composant?.reference?.startsWith('MP') || (!l.composant && l._type === 'mp'))}
+              articles={articlesMP}
+              type="mp"
+              couleur={C.indigo}
+              bg={C.indigoLight}
+              icon="🌿"
+            />
+            <SectionComposition
+              titre="Emballage & Étiquettes"
+              lignesFiltrees={lignes.filter(l => l.composant?.reference?.startsWith('CONSO') || (!l.composant && l._type === 'conso'))}
+              articles={articlesCONSO}
+              type="conso"
+              couleur={C.orange}
+              bg={C.orangeLight}
+              icon="📦"
+            />
+          </>
         )}
       </div>
 
