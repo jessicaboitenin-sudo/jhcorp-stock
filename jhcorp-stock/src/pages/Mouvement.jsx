@@ -114,6 +114,38 @@ export default function Mouvement() {
         prix_unitaire: isEntree && parseFloat(l.prix_total) > 0 ? Math.round(parseFloat(l.prix_total) / qte * 100) / 100 : null,
       })
 
+      // Si ENTRÉE d'un produit fini avec compositions → déduire les MP automatiquement
+      if (isEntree) {
+        const { data: compos } = await supabase
+          .from('compositions')
+          .select('composant_id, quantite, composant:composant_id(id, designation, stock_actuel, prix_revient, unite)')
+          .eq('article_id', articleId)
+
+        if (compos && compos.length > 0) {
+          for (const compo of compos) {
+            const mp = compo.composant
+            if (!mp) continue
+            const qteMpADeduire = compo.quantite * qte
+            const nouveauStockMp = Math.max(0, (mp.stock_actuel || 0) - qteMpADeduire)
+
+            await supabase.from('articles').update({ stock_actuel: nouveauStockMp }).eq('id', compo.composant_id)
+            await supabase.from('mouvements_stock').insert({
+              article_id: compo.composant_id,
+              type: 'sortie_production',
+              quantite: qteMpADeduire,
+              date: new Date(date).toISOString(),
+              reference_document: `Production : ${article.designation}`,
+            })
+
+            // Mettre à jour localement
+            setArticles(prev => prev.map(a => a.id === compo.composant_id
+              ? { ...a, stock_actuel: nouveauStockMp }
+              : a
+            ))
+          }
+        }
+      }
+
       // Mettre à jour l'article localement
       setArticles(prev => prev.map(a => a.id === articleId
         ? { ...a, stock_actuel: nouveauStock, ...(updatePayload.prix_revient ? { prix_revient: updatePayload.prix_revient } : {}) }
